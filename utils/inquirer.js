@@ -12,7 +12,7 @@ const homePage = () => {
             type: 'list',
             name: 'homeChoice',
             message: 'What would you like to do?',
-            choices: ['View all employees', 'View all departments', 'View all roles', 'Add a department', 'Add a role', 'Add an employee', 'Update an employee role', 'Exit']
+            choices: ['View all employees', 'View all departments', 'View all roles', 'Add a department', 'Add a role', 'Add an employee', 'Update an employee role', "Update an employee's manager", "View employees by manager", "View employees by department", 'Exit']
 
         }
     ])
@@ -39,6 +39,15 @@ const homePage = () => {
                     break;
                 case 'Update an employee role':
                     updateEmployee()
+                    break;
+                case "Update an employee's manager":
+                    updateManager()
+                    break;
+                case 'View employees by manager':
+                    viewByManager()
+                    break;
+                case "View employees by department":
+                    viewByDepartment()
                     break;
                 case 'Exit':
                     console.log('Thanks for using my program!')
@@ -151,7 +160,7 @@ function addRole() {
 //updates employees
 function updateEmployee() {
     inquirer.prompt([
-        //I had to put this here because the query functions dont work as the first inquire
+        //I had to put this here because the query functions dont work as the first inquire (im not sure why any input would be appreciated)
         {
             name: 'captcha',
             type: 'input',
@@ -265,6 +274,142 @@ const addEmployee = () => {
                 })
             })
         })
+}
+
+//update an employees manager
+function updateManager() {
+    inquirer.prompt([
+        //I had to put this here because the query functions dont work as the first inquire (im not sure why any input would be appreciated)
+        {
+            name: 'captcha',
+            type: 'input',
+            message: "Confirm you aren't a robot - type anything"
+        },
+        {
+            name: 'updateEmployee',
+            type: 'list',
+            message: 'Which employee would you like to update?',
+            choices: queryEmployees()
+        },
+        {
+            type: 'list',
+            name: 'updateManager',
+            message: "Who is the employees manager?",
+            choices: queryEmployees()
+        }
+
+    ])
+    .then(({updateEmployee, updateManager}) => {
+        //gets the new manager id
+        let manager = updateManager.split(' ')
+        connection.query('SELECT id FROM employee WHERE first_name = ? AND last_name = ?', [manager[0], manager[1]], (err, res) => {
+            if (err) throw error;
+
+            const managerId = res[0].id
+
+
+            let employeeName = updateEmployee.split(' ')
+
+            //updates the employee
+            connection.query('UPDATE employee SET manager_id = ? WHERE first_name = ? AND last_name = ?', [managerId, employeeName[0], employeeName[1]], (error, result) => {
+                if (error) throw error;
+
+                getEmployees();
+            })
+
+            
+        })
+    })
+}
+
+//view employees by manager
+const viewByManager = () => {
+    inquirer.prompt([
+        {
+            name: 'captcha',
+            type: 'input',
+            message: "Confirm you aren't a robot - type anything"
+        },
+        {
+            name: 'manager',
+            type: 'list',
+            message: 'Which managers employees would you like to see?',
+            choices: queryManagers()
+        }
+    ])
+    .then(({manager}) => {
+        let viewEmpsOf = manager.split(' ')
+        
+        connection.query('SELECT id FROM employee WHERE first_name = ? AND last_name = ?', [viewEmpsOf[0], viewEmpsOf[1]], (err, res) => {
+            if (err) throw error;
+
+            let managerId = res[0].id
+            
+            connection.query("SELECT first_name AS 'First name', last_name AS 'Last name' FROM employee WHERE manager_id = ?", managerId, (err, res) => {
+                console.table(res)
+                homePage();
+            })
+        })
+    })
+}
+
+const viewByDepartment = () => {
+    inquirer.prompt([
+        {
+            name: 'captcha',
+            type: 'input',
+            message: "Confirm you aren't a robot - type anything"
+        },
+        {
+            name: 'departments',
+            type: 'list',
+            message: 'Which department would you like to view?',
+            choices: queryDepartments()
+        }
+    ])
+    .then(({departments}) => {
+        //select department > get department id > get role_id of departments > get matching employees
+        connection.query('SELECT id FROM department WHERE department_name = ?', departments, (err, res) => {
+            if (err) throw error;
+
+            let depId = res[0].id
+            
+            connection.query('SELECT id FROM role WHERE department_id = ?', depId, (err, res) => {
+                if (err) throw error;
+                
+                let dep1 = 0
+                let dep2 = 0
+
+                if(res.length > 1) {
+                    dep1 = res[0].id
+                    dep2 = res[1].id
+                } else {
+                    dep1 = res[0].id
+                }
+                
+                connection.query("SELECT first_name AS 'First name', last_name AS 'Last name' FROM employee WHERE role_id = ? OR role_id = ?", [dep1, dep2],(err, res) => {
+                    if (err) throw error;
+
+                    console.table(res)
+                    homePage();
+                })
+            })
+        })
+    })
+}
+
+function queryManagers() {
+    let managers = []
+    connection.query('SELECT first_name, last_name FROM employee WHERE manager_id IS NULL', (err, res) => {
+        if (err) throw error;
+
+        res.forEach(manager => {
+            
+            name = manager.first_name.concat(' ', manager.last_name)
+            managers.push(name)
+        })
+    }) 
+    return managers;   
 }
 
 
